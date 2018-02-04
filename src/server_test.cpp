@@ -6,13 +6,16 @@
 // Description : This is a simple server project
 //============================================================================
 
+#ifdef NEVER
 #include <iostream>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h> //For sockaddr_in
 #include <arpa/inet.h>  //For htonl
 #include <unistd.h>     //for read
+#include <functional>
 
 using namespace std;
 
@@ -20,9 +23,34 @@ using namespace std;
 #define NUMBER_OF_CONNECTION_ALLOWED 1
 #define READ_BUFFER_SIZE 1024
 
+void test()
+{
+	cout<<"Test\n";
+}
+
+#endif
+
+#include <iostream>
+#include "TcpServer.h"
 
 int main() {
-	cout << "!!!Hello World!!!" << endl; // prints !!!Hello World!!!
+	std::cout << "!!!Hello World!!!" << std::endl; // prints !!!Hello World!!!
+
+     TcpServer myServer;
+     myServer.connect(5000);
+     myServer.startListening(NULL);
+
+     std::cout<<"Running succesful";
+
+     while(1);
+
+
+
+#ifdef NEVER
+
+	//function<void()> hello = [](){cout<<"Hello\n";};
+	auto hello = [](){cout<<"Hello\n";};
+	hello();
 
 	//First this to do is to create a socket
 
@@ -96,12 +124,18 @@ int main() {
 		int readLength;
 		do
 		{
+			memset(readBuffer,0,sizeof(readBuffer));
 			readLength = read(clientDescriptor,readBuffer, READ_BUFFER_SIZE);
 			std::cout<<"Read Length = " << readLength<<endl;
+			readBuffer[readLength] = '\n';
+			printf("Message received = %s\n",readBuffer);
 		}while(readLength > 0);
 		std::cout<<"Client disconnected \n";
 		//Todo Print
+
+
 	}
 
+#endif
 	return 0;
 }
