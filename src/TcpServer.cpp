@@ -4,7 +4,9 @@
  *  Created on: 3 Feb 2018
  *      Author: hemant
  */
-
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h> //For sockaddr_in
@@ -12,6 +14,8 @@
 #include <unistd.h>     //for read
 #include <fcntl.h>      //for fnctl
 #include <errno.h>      // for errno
+#include <signal.h>
+#include <poll.h>
 #include <iostream>
 #include <string.h>
 #include <chrono>
@@ -92,35 +96,53 @@ void TcpServer::clientThread(int clientDescriptor)
 	std::cout<<"Client connected \n";
 
 	//Set the client socket to be non blocking
-	fcntl(clientDescriptor, F_SETFL, O_NONBLOCK); /* Change the socket into non-blocking state	*/
 	int readLength;
 	bool continueReading(true);
+	/*Set the client descriptor polling on read */
+	struct pollfd clientReadPoll;
+	clientReadPoll.fd = clientDescriptor;
+	/*
+	 * Events are :
+	 * POLLRDHUP  : Stream socket peer closed connection
+	 * POLLIN     : There is data to read
+	 */
+	clientReadPoll.events = POLLIN;
+
 	do
 	{
-		memset(readBuffer,0,sizeof(readBuffer));
+		//Lets have the timeout to be 1 second
+		readLength = 0;
+		int pollReturn =  poll(&clientReadPoll, 1, 1000);
+		//memset(readBuffer,0,sizeof(readBuffer));
 
-		//Todo: This is a blocking read... Need unblocking read
-		readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
-		//check if there was nothing to read then don't bail out
-		if(readLength < 0 && errno == EAGAIN)
+		if(pollReturn == 0)
 		{
-			//Lets sleep for 1 second before retrying
-			std::cout<<"Got nothing sleeping for a second\n";
-			std::this_thread::sleep_for(std::chrono::seconds(5));
+			std::cout<<"Time out happened and no message was received...\n";
+			//Lets try again
+			continue;
+		}
+
+		// Now this thread will sleep till any of the events occurred
+		//Check which event occurred
+		if(clientReadPoll.revents == POLLIN)
+		{
+			std::cout<<"Something is read\n";
+			readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
+			std::cout<<"lenght = "<<readLength<<std::endl;
+
+			if(readLength == 0)
+			{
+				std::cout<<"Client disconnected\n";
+				continueReading = false;
+			}
 		}
 		if(readLength > 0)
 		{
 			std::cout<<"Read Length = " << readLength<<std::endl;
-			readBuffer[readLength] = '\n';
+			readBuffer[readLength] = 0;
 			printf("Message received = %s\n",readBuffer);
 		}
-		else
-		{
-			std::cout<<"Client disconnected\n";
-			continueReading = false;
-		}
 	}while(continueReading);
-	std::cout<<"Exiting thread as client disconected\n";
 }
 
 TcpServer::~TcpServer() {
