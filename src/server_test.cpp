@@ -40,10 +40,12 @@ int main() {
      myServer.connect(5000);
      myServer.startListening(NULL);
 
-     std::cout<<"Running succesful";
-
-     while(1);
-
+     //sleep for 5 seconds
+     while(true)
+     {
+         std::this_thread::sleep_for (std::chrono::seconds(5));
+         std::cout<<"Main loop Running successful\n";
+     }
 
 
 #ifdef NEVER

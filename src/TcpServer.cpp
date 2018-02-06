@@ -69,83 +69,107 @@ bool TcpServer::startListening(callback functionToCall)
 	}
 	listen(m_serverDescriptor,m_maxConnection);
 
+	//New thread for the client
+	m_threadStarted = true;
+	m_thread = std::thread(&TcpServer::clientThread,this);
+	//m_thread.join();
+
+	return true;
+}
+
+void TcpServer::clientThread()
+{
 	while (!m_stopListening)
 	{
 		struct sockaddr clientSocket;
 		socklen_t length;
 		//Waiting to accept the client
 		//Note this is a blocking call
+		//Lets make server socket to be polled
+		struct pollfd serverPoll;
+		serverPoll.fd = m_serverDescriptor;
+		/*
+		 * Events are :
+		 * POLLIN     : There is data to read
+		 */
+		serverPoll.events = POLLIN;
+		int pollReturn =  poll(&serverPoll, 1, 3000);
+
+		if(pollReturn == 0)
+		{
+			std::cout<<"Time out happened and no connection was made...\n";
+			//Lets try again
+			continue;
+		}
+
+
 		std::cout<<"Waiting for client to be connected...\n";
 		int clientDescriptor = accept(m_serverDescriptor,&clientSocket,&length);
 
 		//Once we are here, we get client connected
 		std::cout<<"Client connected...\n";
 
-		//New thread for the client
-		m_threadStarted = true;
-		m_thread = std::thread(&TcpServer::clientThread,this,clientDescriptor);
-		m_thread.join();
-	}
+		char readBuffer[m_maxBufferSize];
+		std::cout<<"Client connected \n";
 
-	return true;
-}
+		//Set the client socket to be non blocking
+		int readLength;
+		bool continueReading(true);
+		/*Set the client descriptor polling on read */
+		struct pollfd clientReadPoll;
+		clientReadPoll.fd = clientDescriptor;
+		/*
+		 * Events are :
+		 * POLLIN     : There is data to read
+		 */
+		clientReadPoll.events = POLLIN;
 
-void TcpServer::clientThread(int clientDescriptor)
-{
-	char readBuffer[m_maxBufferSize];
-	std::cout<<"Client connected \n";
-
-	//Set the client socket to be non blocking
-	int readLength;
-	bool continueReading(true);
-	/*Set the client descriptor polling on read */
-	struct pollfd clientReadPoll;
-	clientReadPoll.fd = clientDescriptor;
-	/*
-	 * Events are :
-	 * POLLRDHUP  : Stream socket peer closed connection
-	 * POLLIN     : There is data to read
-	 */
-	clientReadPoll.events = POLLIN;
-
-	do
-	{
-		//Lets have the timeout to be 1 second
-		readLength = 0;
-		int pollReturn =  poll(&clientReadPoll, 1, 1000);
-		//memset(readBuffer,0,sizeof(readBuffer));
-
-		if(pollReturn == 0)
+		do
 		{
-			std::cout<<"Time out happened and no message was received...\n";
-			//Lets try again
-			continue;
-		}
+			//Lets have the timeout to be 1 second
+			readLength = 0;
+			int pollReturn =  poll(&clientReadPoll, 1, 5000);
 
-		// Now this thread will sleep till any of the events occurred
-		//Check which event occurred
-		if(clientReadPoll.revents == POLLIN)
-		{
-			std::cout<<"Something is read\n";
-			readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
-			std::cout<<"lenght = "<<readLength<<std::endl;
-
-			if(readLength == 0)
+			if(pollReturn == 0)
 			{
-				std::cout<<"Client disconnected\n";
-				continueReading = false;
+				std::cout<<"Time out happened and no message was received...\n";
+				//Lets try again
+				continue;
 			}
-		}
-		if(readLength > 0)
-		{
-			std::cout<<"Read Length = " << readLength<<std::endl;
-			readBuffer[readLength] = 0;
-			printf("Message received = %s\n",readBuffer);
-		}
-	}while(continueReading);
+
+			// Now this thread will sleep till any of the events occurred
+			//Check which event occurred
+			if(clientReadPoll.revents == POLLIN)
+			{
+				std::cout<<"Something is read\n";
+				readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
+				std::cout<<"lenght = "<<readLength<<std::endl;
+
+				if(readLength == 0)
+				{
+					std::cout<<"Client disconnected\n";
+					continueReading = false;
+				}
+			}
+			if(readLength > 0)
+			{
+				std::cout<<"Read Length = " << readLength<<std::endl;
+				readBuffer[readLength] = 0;
+				printf("Message received = %s\n",readBuffer);
+			}
+		}while(continueReading && !m_stopListening);
+	}
 }
 
 TcpServer::~TcpServer() {
 	// TODO Auto-generated destructor stub
+	if(m_threadStarted)
+	{
+		std::cout<<"Waiting for thread to be closed\n";
+		//Stop the thread
+		m_stopListening = true;
+		m_thread.join();
+		std::cout<<"Thread closed...\n";
+	}
 }
 

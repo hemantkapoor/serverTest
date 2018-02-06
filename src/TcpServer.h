@@ -34,7 +34,7 @@ private:
 	const int m_maxConnection = 1;
 	const int m_maxBufferSize = 1024;
 
-	void clientThread(int clientDescriptor);
+	void clientThread();
 
 };
 
