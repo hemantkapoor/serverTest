@@ -109,7 +109,6 @@ void TcpServer::clientThread()
 		std::cout<<"Client connected...\n";
 
 		char readBuffer[m_maxBufferSize];
-		std::cout<<"Client connected \n";
 
 		int readLength;
 		bool continueReading(true);
