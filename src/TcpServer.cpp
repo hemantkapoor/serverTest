@@ -41,7 +41,6 @@ bool TcpServer::connect(int portNumber)
 	//Clear the address
 	memset(&server_address,0, sizeof(server_address));
 	server_address.sin_family = AF_INET;
-	//server_address.sin_addr.in_addr = htonl(INADDR_ANY);
 	server_address.sin_addr.s_addr = htonl(INADDR_ANY);
 	server_address.sin_port = htons(portNumber);
 	std::cout<<"Binding socket...\n";
@@ -79,12 +78,16 @@ bool TcpServer::startListening(callback functionToCall)
 
 void TcpServer::clientThread()
 {
+	bool displayClientMessage(true);
 	while (!m_stopListening)
 	{
+		if(displayClientMessage)
+		{
+			displayClientMessage = false;
+			std::cout<<"Waiting for Client to be connected\n";
+		}
 		struct sockaddr clientSocket;
 		socklen_t length;
-		//Waiting to accept the client
-		//Note this is a blocking call
 		//Lets make server socket to be polled
 		struct pollfd serverPoll;
 		serverPoll.fd = m_serverDescriptor;
@@ -97,13 +100,9 @@ void TcpServer::clientThread()
 
 		if(pollReturn == 0)
 		{
-			std::cout<<"Time out happened and no connection was made...\n";
 			//Lets try again
 			continue;
 		}
-
-
-		std::cout<<"Waiting for client to be connected...\n";
 		int clientDescriptor = accept(m_serverDescriptor,&clientSocket,&length);
 
 		//Once we are here, we get client connected
@@ -112,7 +111,6 @@ void TcpServer::clientThread()
 		char readBuffer[m_maxBufferSize];
 		std::cout<<"Client connected \n";
 
-		//Set the client socket to be non blocking
 		int readLength;
 		bool continueReading(true);
 		/*Set the client descriptor polling on read */
@@ -124,40 +122,37 @@ void TcpServer::clientThread()
 		 */
 		clientReadPoll.events = POLLIN;
 
-		do
+		while(continueReading && !m_stopListening)
 		{
-			//Lets have the timeout to be 1 second
+			//Lets have the timeout to be 5 second
 			readLength = 0;
-			int pollReturn =  poll(&clientReadPoll, 1, 5000);
+			pollReturn =  poll(&clientReadPoll, 1, 5000);
 
 			if(pollReturn == 0)
 			{
-				std::cout<<"Time out happened and no message was received...\n";
 				//Lets try again
 				continue;
 			}
 
-			// Now this thread will sleep till any of the events occurred
 			//Check which event occurred
 			if(clientReadPoll.revents == POLLIN)
 			{
-				std::cout<<"Something is read\n";
 				readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
-				std::cout<<"lenght = "<<readLength<<std::endl;
-
 				if(readLength == 0)
 				{
 					std::cout<<"Client disconnected\n";
 					continueReading = false;
 				}
+				else if(readLength > 0)
+				{
+					readBuffer[readLength] = 0;
+					//Convert to string as we need to pass this finally
+					std::string receivedMessage(readBuffer);
+					std::cout<<"Message received = "<<receivedMessage<<std::endl;
+				}
 			}
-			if(readLength > 0)
-			{
-				std::cout<<"Read Length = " << readLength<<std::endl;
-				readBuffer[readLength] = 0;
-				printf("Message received = %s\n",readBuffer);
-			}
-		}while(continueReading && !m_stopListening);
+		}
+		displayClientMessage = true;
 	}
 }
 
