@@ -79,6 +79,30 @@ bool TcpServer::startListening(callback functionToCall)
 void TcpServer::clientThread()
 {
 	bool displayClientMessage(true);
+	//Lets make server socket to be polled
+	struct pollfd serverPoll;
+	serverPoll.fd = m_serverDescriptor;
+	/*
+	 * Events are :
+	 * POLLIN     : There is data to read
+	 */
+	serverPoll.events = POLLIN;
+
+	//Ready for client
+	struct sockaddr clientSocket;
+	socklen_t length;
+	char readBuffer[m_maxBufferSize];
+	int readLength;
+	bool continueReading(true);
+	/*Set the client descriptor polling on read */
+	struct pollfd clientReadPoll;
+	int clientDescriptor;
+	/*
+	 * Events are :
+	 * POLLIN     : There is data to read
+	 */
+	clientReadPoll.events = POLLIN;
+
 	while (!m_stopListening)
 	{
 		if(displayClientMessage)
@@ -86,16 +110,6 @@ void TcpServer::clientThread()
 			displayClientMessage = false;
 			std::cout<<"Waiting for Client to be connected\n";
 		}
-		struct sockaddr clientSocket;
-		socklen_t length;
-		//Lets make server socket to be polled
-		struct pollfd serverPoll;
-		serverPoll.fd = m_serverDescriptor;
-		/*
-		 * Events are :
-		 * POLLIN     : There is data to read
-		 */
-		serverPoll.events = POLLIN;
 		int pollReturn =  poll(&serverPoll, 1, 3000);
 
 		if(pollReturn == 0)
@@ -103,28 +117,15 @@ void TcpServer::clientThread()
 			//Lets try again
 			continue;
 		}
-		int clientDescriptor = accept(m_serverDescriptor,&clientSocket,&length);
 
+		clientDescriptor = accept(m_serverDescriptor,&clientSocket,&length);
+		clientReadPoll.fd = clientDescriptor;
 		//Once we are here, we get client connected
 		std::cout<<"Client connected...\n";
-
-		char readBuffer[m_maxBufferSize];
-
-		int readLength;
-		bool continueReading(true);
-		/*Set the client descriptor polling on read */
-		struct pollfd clientReadPoll;
-		clientReadPoll.fd = clientDescriptor;
-		/*
-		 * Events are :
-		 * POLLIN     : There is data to read
-		 */
-		clientReadPoll.events = POLLIN;
 
 		while(continueReading && !m_stopListening)
 		{
 			//Lets have the timeout to be 5 second
-			readLength = 0;
 			pollReturn =  poll(&clientReadPoll, 1, 5000);
 
 			if(pollReturn == 0)
@@ -150,9 +151,9 @@ void TcpServer::clientThread()
 					std::cout<<"Message received = "<<receivedMessage<<std::endl;
 				}
 			}
-		}
+		}//End of client connection while loop
 		displayClientMessage = true;
-	}
+	}//End of main thread
 }
 
 TcpServer::~TcpServer() {
