@@ -93,7 +93,7 @@ void TcpServer::clientThread()
 	socklen_t length;
 	char readBuffer[m_maxBufferSize];
 	int readLength;
-	bool continueReading(true);
+
 	/*Set the client descriptor polling on read */
 	struct pollfd clientReadPoll;
 	int clientDescriptor;
@@ -105,6 +105,7 @@ void TcpServer::clientThread()
 
 	while (!m_stopListening)
 	{
+		bool continueReading(true);
 		if(displayClientMessage)
 		{
 			displayClientMessage = false;
@@ -122,6 +123,24 @@ void TcpServer::clientThread()
 		clientReadPoll.fd = clientDescriptor;
 		//Once we are here, we get client connected
 		std::cout<<"Client connected...\n";
+		/*
+		 * Below code is to take into account when the connect and
+		 * a message was sent immediately.
+		 * We do a non blocking read to see any message is there before polling
+		 */
+		int saved_flags = fcntl(clientDescriptor, F_GETFL);
+		// Set the new flags with O_NONBLOCK masked out
+		fcntl(clientDescriptor, F_SETFL, saved_flags & ~O_NONBLOCK);
+
+		readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
+		if(readLength > 0)
+		{
+			readBuffer[readLength] = 0;
+			//Convert to string as we need to pass this finally
+			std::string receivedMessage(readBuffer);
+			std::cout<<"Message received = "<<receivedMessage<<std::endl;
+		}
+		fcntl(clientDescriptor, F_SETFL, saved_flags);
 
 		while(continueReading && !m_stopListening)
 		{
