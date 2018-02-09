@@ -21,11 +21,13 @@ public:
 	bool connect(int portNumber);
 	//bool startListening(std::function<void(char*)>);
 	bool startListening(callback);
+	bool sendMessage(const std::string&);
 	virtual ~TcpServer();
 
 private:
 	std::thread m_thread;
 	int m_serverDescriptor=0;
+	int m_clientDescriptor = 0;
 	bool m_socketCreated = false;
 	bool m_stopListening = false;
 	bool m_threadStarted = false;  //This will be used when socket thread is non blocking...
@@ -35,6 +37,8 @@ private:
 	const int m_maxBufferSize = 1024;
 
 	void clientThread();
+	//Helper function to read message
+	bool readMessage(bool bIgnoreError=false);
 
 };
 

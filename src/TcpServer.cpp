@@ -91,12 +91,9 @@ void TcpServer::clientThread()
 	//Ready for client
 	struct sockaddr clientSocket;
 	socklen_t length;
-	char readBuffer[m_maxBufferSize];
-	int readLength;
 
 	/*Set the client descriptor polling on read */
 	struct pollfd clientReadPoll;
-	int clientDescriptor;
 	/*
 	 * Events are :
 	 * POLLIN     : There is data to read
@@ -119,8 +116,8 @@ void TcpServer::clientThread()
 			continue;
 		}
 
-		clientDescriptor = accept(m_serverDescriptor,&clientSocket,&length);
-		clientReadPoll.fd = clientDescriptor;
+		m_clientDescriptor = accept(m_serverDescriptor,&clientSocket,&length);
+		clientReadPoll.fd = m_clientDescriptor;
 		//Once we are here, we get client connected
 		std::cout<<"Client connected...\n";
 		/*
@@ -128,19 +125,12 @@ void TcpServer::clientThread()
 		 * a message was sent immediately.
 		 * We do a non blocking read to see any message is there before polling
 		 */
-		int saved_flags = fcntl(clientDescriptor, F_GETFL);
+		int saved_flags = fcntl(m_clientDescriptor, F_GETFL);
 		// Set the new flags with O_NONBLOCK masked out
-		fcntl(clientDescriptor, F_SETFL, saved_flags & ~O_NONBLOCK);
+		fcntl(m_clientDescriptor, F_SETFL, saved_flags & ~O_NONBLOCK);
 
-		readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
-		if(readLength > 0)
-		{
-			readBuffer[readLength] = 0;
-			//Convert to string as we need to pass this finally
-			std::string receivedMessage(readBuffer);
-			std::cout<<"Message received = "<<receivedMessage<<std::endl;
-		}
-		fcntl(clientDescriptor, F_SETFL, saved_flags);
+		readMessage(false);
+		fcntl(m_clientDescriptor, F_SETFL, saved_flags);
 
 		while(continueReading && !m_stopListening)
 		{
@@ -156,27 +146,68 @@ void TcpServer::clientThread()
 			//Check which event occurred
 			if(clientReadPoll.revents == POLLIN)
 			{
-				readLength = read(clientDescriptor,readBuffer, m_maxBufferSize);
-				if(readLength == 0)
-				{
-					std::cout<<"Client disconnected\n";
-					continueReading = false;
-				}
-				else if(readLength > 0)
-				{
-					readBuffer[readLength] = 0;
-					//Convert to string as we need to pass this finally
-					std::string receivedMessage(readBuffer);
-					std::cout<<"Message received = "<<receivedMessage<<std::endl;
-				}
+				continueReading = readMessage();
 			}
 		}//End of client connection while loop
+		m_clientDescriptor = 0;
 		displayClientMessage = true;
 	}//End of main thread
 }
 
+//Helper function to read message
+bool TcpServer::readMessage(bool bIgnoreError /*=false*/)
+{
+	char readBuffer[m_maxBufferSize];
+	auto readLength = read(m_clientDescriptor,readBuffer, m_maxBufferSize);
+	if(readLength == 0 && !bIgnoreError)
+	{
+		std::cout<<"Client disconnected\n";
+		return false;
+	}
+	else if(readLength > 0)
+	{
+		readBuffer[readLength] = 0;
+		//Convert to string as we need to pass this finally
+		std::string receivedMessage(readBuffer);
+		std::cout<<"Message received = "<<receivedMessage<<std::endl;
+		sendMessage("Hello");
+	}
+	return true;
+
+}
+
+bool TcpServer::sendMessage(const std::string& message)
+{
+	std::cout<<"Sending Message\n";
+	if(m_clientDescriptor == 0)
+	{
+		std::cout<<"Cannot write and no client connected\n";
+		return false;
+	}
+	//We do blocking write here... Don't think it will be an issue
+	auto lengthWritten = write(m_clientDescriptor,(const void*)message.c_str(),message.length());
+
+	if(lengthWritten < 0)
+	{
+		std::cout<<"Error with connection, cannot send message";
+		return false;
+	}
+	//Below should go in a while loop
+	if(static_cast<unsigned int>(lengthWritten) !=message.length())
+	{
+		std::cout<<"Error only "<<lengthWritten <<" is sent rather than "<<message.length()<<std::endl;
+		return false;
+	}
+	else
+	{
+		std::cout<<"Message Sent\n";
+	}
+	//Everything is fine
+	return true;
+
+}
+
 TcpServer::~TcpServer() {
-	// TODO Auto-generated destructor stub
 	if(m_threadStarted)
 	{
 		std::cout<<"Waiting for thread to be closed\n";
