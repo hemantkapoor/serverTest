@@ -19,7 +19,6 @@ class TcpServer {
 public:
 	TcpServer() = default;
 	bool connect(int portNumber);
-	//bool startListening(std::function<void(char*)>);
 	bool startListening(callback);
 	bool sendMessage(const std::string&);
 	virtual ~TcpServer();

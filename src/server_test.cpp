@@ -14,11 +14,13 @@ int main() {
 
      TcpServer myServer;
      myServer.connect(5000);
-     bool res = myServer.startListening(NULL);
+     auto myCallBack = [](std::string& message){std::cout<<"Callback from main thread "<<message<<std::endl;};
+//     bool res = myServer.startListening(NULL);
+     bool res = myServer.startListening(myCallBack);
 
      if(res == false)
      {
-    	 std::cout<<"Listening failed, exiting applicationn";
+    	 std::cout<<"Listening failed, exiting application";
     	 return -1;
      }
 

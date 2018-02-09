@@ -67,6 +67,7 @@ bool TcpServer::startListening(callback functionToCall)
 		return false;
 	}
 	listen(m_serverDescriptor,m_maxConnection);
+	m_callBack = functionToCall;
 
 	//New thread for the client
 	m_threadStarted = true;
@@ -171,6 +172,11 @@ bool TcpServer::readMessage(bool bIgnoreError /*=false*/)
 		std::string receivedMessage(readBuffer);
 		std::cout<<"Message received = "<<receivedMessage<<std::endl;
 		sendMessage("Hello");
+		//Do the callback
+		if(m_callBack != NULL)
+		{
+			m_callBack(receivedMessage);
+		}
 	}
 	return true;
 
@@ -178,7 +184,6 @@ bool TcpServer::readMessage(bool bIgnoreError /*=false*/)
 
 bool TcpServer::sendMessage(const std::string& message)
 {
-	std::cout<<"Sending Message\n";
 	if(m_clientDescriptor == 0)
 	{
 		std::cout<<"Cannot write and no client connected\n";
